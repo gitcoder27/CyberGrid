@@ -1,0 +1,22 @@
+{
+  "name": "cybergrid",
+  "private": true,
+  "version": "0.1.0",
+  "description": "CyberGrid — a terminal-based hacking game. Tension game disguised as a terminal.",
+  "workspaces": [
+    "packages/*",
+    "app"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w app",
+    "start": "npm run dev -w app",
+    "build": "npm run build -w app",
+    "preview": "npm run preview -w app",
+    "test": "npm test -w @cybergrid/engine && npm test -w app",
+    "test:engine": "npm test -w @cybergrid/engine",
+    "typecheck": "tsc -p packages/engine --noEmit && tsc -p app --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

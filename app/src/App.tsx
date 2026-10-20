@@ -1,32 +1,42 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { TopBar, NodeMap, SidePanel } from './hud/Hud.js';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { TopBar, MapPanel, IntelPanel, Dock } from './hud/Hud.js';
 import { TerminalView } from './terminal/TerminalView.js';
+import { CommandLine, type CommandLineHandle } from './terminal/CommandLine.js';
+import type { TerminalWriter } from './terminal/writer.js';
 import { Synth } from './audio/synth.js';
-import { localStorageAdapter } from './persistence/storage.js';
+import { createLocalStorageAdapter } from './persistence/storage.js';
 import { Bridge } from './engine/bridge.js';
 
+let flashSeq = 0;
+
 export function App() {
-  const bridge = useMemo(() => new Bridge(localStorageAdapter), []);
+  const bridge = useMemo(() => new Bridge(createLocalStorageAdapter()), []);
   const synth = useMemo(() => new Synth(), []);
   const rootRef = useRef<HTMLDivElement>(null);
   const terminalBoxRef = useRef<HTMLDivElement>(null);
+  const cmdRef = useRef<CommandLineHandle>(null);
+  const writerRef = useRef<TerminalWriter | null>(null);
   const [flash, setFlash] = useState<{ kind: string; seq: number } | null>(null);
+  const [drawer, setDrawer] = useState<'map' | 'intel' | null>(null);
 
-  // HUD re-renders when the bridge bumps its version
   useSyncExternalStore(bridge.subscribe, bridge.getVersion, bridge.getVersion);
 
-  const [reducedMotion, setReducedMotion] = useState(
-    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
-
+  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
     const onChange = () => setReducedMotion(mq.matches);
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
-
   const motionAllowed = bridge.snapshot.settings.motion && !reducedMotion;
+  const motionRef = useRef(motionAllowed);
+  motionRef.current = motionAllowed;
+
+  const onWriter = useCallback((w: TerminalWriter | null) => {
+    writerRef.current = w;
+  }, []);
+  const getWriter = useCallback(() => writerRef.current, []);
+  const backToCommand = useCallback(() => cmdRef.current?.focus(), []);
 
   /* ------------------------------ frame loop ------------------------------ */
   useEffect(() => {
@@ -34,27 +44,21 @@ export function App() {
     let last = performance.now();
     let hudClock = 0;
     let saveClock = 0;
-
     const loop = (now: number) => {
+      // Capped: a background tab (no rAF) never fast-forwards the mission clock.
       const dt = Math.min(now - last, 100);
       last = now;
       bridge.frame(dt);
-
-      // audio: alarm pitch follows the trace meter (PRD §13)
       const snap = bridge.snapshot;
       synth.applySettings(snap);
-      const missionLive = snap.mode === 'mission' && snap.mission;
-      const alarmTrace = missionLive && snap.mission!.phase !== 'quiet' ? snap.mission!.trace : null;
-      synth.setAlarm(alarmTrace);
+      const live = snap.mode === 'mission' ? snap.mission : null;
+      synth.setAlarm(live && live.phase !== 'quiet' ? live.trace : null);
 
-      // juice: fx queue
-      const fx = bridge.fxQueue.splice(0);
-      for (const f of fx) {
+      for (const f of bridge.fxQueue.splice(0)) {
         if (f.kind === 'sfx' && f.name) synth.play(f.name as never);
-        if (f.kind === 'flash') {
-          setFlash({ kind: f.flashKind ?? 'good', seq: ++flashSeq });
-        }
-        if (f.kind === 'shake' && motionAllowed) {
+        if (!motionRef.current) continue;
+        if (f.kind === 'flash') setFlash({ kind: f.flashKind ?? 'good', seq: ++flashSeq });
+        if (f.kind === 'shake') {
           const root = rootRef.current;
           if (root) {
             root.style.setProperty('--shake-px', `${Math.min(6, 2 + (f.power ?? 1) * 3)}px`);
@@ -64,7 +68,7 @@ export function App() {
             window.setTimeout(() => root.classList.remove('shake'), 420);
           }
         }
-        if (f.kind === 'glitch' && motionAllowed) {
+        if (f.kind === 'glitch') {
           const box = terminalBoxRef.current;
           if (box) {
             box.classList.remove('glitch');
@@ -74,89 +78,127 @@ export function App() {
           }
         }
       }
-
-      // HUD timers (puzzle fuse, transfer) tick even without engine state events
+      // fuse / transfer timers tick without engine state events
       hudClock += dt;
       if (hudClock > 150) {
         hudClock = 0;
-        bridge.refresh();
+        if (snap.mode === 'mission') bridge.refresh();
       }
-
-      // autosave the in-flight session periodically (crash safety, PRD §4.3)
       saveClock += dt;
       if (saveClock > 5000) {
         saveClock = 0;
-        if (bridge.snapshot.mode === 'mission') bridge.persist();
+        if (snap.mode === 'mission') bridge.persist();
       }
-
-      // ambient shake while the admin alert is live (PRD §7: 75%)
-      const root = rootRef.current;
-      if (root) {
-        const wantAmbient = motionAllowed && !!missionLive && bridge.snapshot.mission!.phase === 'alert';
-        root.classList.toggle('shake-ambient', wantAmbient);
-      }
-
+      rootRef.current?.classList.toggle('shake-ambient', motionRef.current && !!live && live.phase === 'alert');
       raf = window.requestAnimationFrame(loop);
     };
     raf = window.requestAnimationFrame(loop);
     return () => window.cancelAnimationFrame(raf);
-  }, [bridge, synth, motionAllowed]);
+  }, [bridge, synth]);
 
   /* ---------------------------- persistence ------------------------------ */
   useEffect(() => {
-    const onBlur = () => bridge.persist(); // autosave on tab blur (PRD §4.3)
-    window.addEventListener('blur', onBlur);
-    return () => window.removeEventListener('blur', onBlur);
-  }, [bridge]);
-
-  // Alarms must not wail from a background tab (UAT finding): rAF stops when
-  // hidden, so explicitly silence the loop until we're visible again.
-  useEffect(() => {
+    let hiddenMidRun = false;
+    const save = () => bridge.persist();
     const onVisibility = () => {
-      if (document.hidden) synth.setAlarm(null);
+      if (document.hidden) {
+        bridge.persist();
+        synth.setAlarm(null); // alarms never wail from a background tab
+        hiddenMidRun = bridge.snapshot.mode === 'mission';
+      } else if (hiddenMidRun) {
+        hiddenMidRun = false;
+        bridge.note('[‖] terminal was out of sight — the mission clock stopped with it.');
+      }
     };
+    window.addEventListener('blur', save);
+    window.addEventListener('pagehide', save);
     document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [synth]);
+    return () => {
+      window.removeEventListener('blur', save);
+      window.removeEventListener('pagehide', save);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [bridge, synth]);
 
   useEffect(() => {
-    const snap = bridge.snapshot;
-    // unlock audio on the first interaction (autoplay policy, PRD §19)
     const unlock = () => synth.unlock();
     window.addEventListener('pointerdown', unlock, { once: true });
     window.addEventListener('keydown', unlock, { once: true });
-    void snap;
     return () => {
       window.removeEventListener('pointerdown', unlock);
       window.removeEventListener('keydown', unlock);
     };
-  }, [synth, bridge]);
+  }, [synth]);
+
+  // A drawer that opens takes focus; closing returns it to the command line.
+  const toggleDrawer = (d: 'map' | 'intel') => {
+    setDrawer((cur) => {
+      const next = cur === d ? null : d;
+      window.setTimeout(() => {
+        if (next) document.querySelector<HTMLElement>(`#${next}-panel .drawer-close`)?.focus();
+        else cmdRef.current?.focus();
+      }, 0);
+      return next;
+    });
+  };
+  const closeDrawer = () => {
+    setDrawer(null);
+    window.setTimeout(() => cmdRef.current?.focus(), 0);
+  };
+
+  // A command composed from a drawer (e.g. "type `breach …`") hands the screen back to the command line.
+  const composeSeq = bridge.compose?.seq ?? 0;
+  useEffect(() => {
+    if (composeSeq) setDrawer(null);
+  }, [composeSeq]);
 
   const snap = bridge.snapshot;
-  const showSuggest = snap.suggest.length > 0 && snap.mode !== 'boot';
-
   return (
-    <div className="app" ref={rootRef}>
-      <TopBar snap={snap} bridge={bridge} />
+    <div className={`app mode-${snap.mode} ${snap.mission?.cutscene ? 'cutscene' : ''} ${motionAllowed ? '' : 'no-motion'}`} ref={rootRef}>
+      <a className="skip-link" href="#cmd">
+        skip to command line
+      </a>
+      <TopBar snap={snap} bridge={bridge} onToggle={toggleDrawer} drawer={drawer} />
       <div className="main">
-        <NodeMap bridge={bridge} snap={snap} />
-        <div className="panel terminal-panel" ref={terminalBoxRef}>
-          <TerminalView bridge={bridge} synth={synth} />
-          {showSuggest && (
-            <div className="suggest-chip" title="press TAB to fill">
-              <span className="kbd">next ▸</span> {snap.suggest}
-              <span className="kbd">[TAB]</span>
-            </div>
-          )}
-        </div>
-        <SidePanel bridge={bridge} snap={snap} />
+        <MapPanel bridge={bridge} snap={snap} open={drawer === 'map'} onClose={closeDrawer} backToCommand={backToCommand} />
+        <main className="panel terminal-panel" ref={terminalBoxRef} aria-label="terminal">
+          <div
+            className="terminal-scroll"
+            onPointerUp={() => {
+              // click-to-type, unless the player is selecting text to copy
+              if (!window.getSelection()?.toString()) cmdRef.current?.focus();
+            }}
+          >
+            <TerminalView bridge={bridge} onWriter={onWriter} />
+          </div>
+          <Dock bridge={bridge} snap={snap} />
+          <CommandLine ref={cmdRef} bridge={bridge} snap={snap} synth={synth} writer={getWriter} />
+        </main>
+        <IntelPanel bridge={bridge} snap={snap} open={drawer === 'intel'} onClose={closeDrawer} backToCommand={backToCommand} />
       </div>
-      {snap.settings.crt && <div className="crt-overlay" aria-hidden />}
-      {flash && (
-        <div key={flash.seq} className={`flash-layer ${flash.kind}`} aria-hidden />
-      )}
+      {drawer && <div className="scrim" onClick={closeDrawer} aria-hidden="true" />}
+      <Transcript bridge={bridge} />
+      <div role="status" aria-live="polite" className="sr-only" data-testid="announcer">
+        {bridge.announcement.text}
+      </div>
+      {snap.settings.crt && <div className="crt-overlay" aria-hidden="true" />}
+      {flash && <div key={flash.seq} className={`flash-layer ${flash.kind}`} aria-hidden="true" />}
     </div>
   );
 }
 
-let flashSeq = 0;
+/** Screen-reader / automation mirror of the terminal. Progress frames are excluded. */
+function Transcript({ bridge }: { bridge: Bridge }) {
+  const version = bridge.transcriptVersion;
+  return useMemo(
+    () => (
+      <div role="log" aria-label="terminal output" className="sr-only" data-testid="transcript">
+        {bridge.transcript.slice(-120).map((l) => (
+          <p key={l.id}>{l.text}</p>
+        ))}
+      </div>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [version, bridge]
+  );
+}

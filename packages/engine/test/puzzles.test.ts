@@ -16,7 +16,7 @@ import {
 import { Rng } from '../src/rng.js';
 import type { PuzzleState } from '../src/types.js';
 import { TELEMETRY_DEFAULT } from '../src/types.js';
-import { bootToHome, drain, settle, tickWhile, traceOf } from './helpers.js';
+import { bootToHome, breachTo, drain, settle, tickWhile, traceOf } from './helpers.js';
 
 describe('sequence completion', () => {
   it('is deterministic for a given seed', () => {
@@ -83,13 +83,8 @@ describe('port-knock memory', () => {
       return; // contract roll has no knock this seed — covered by generator tests
     }
     const knockNode = spec.nodes.find((n) => n.puzzleFamily === 'portknock' && n.security > 0)!;
-    // walk the chain up to (not including) it
-    for (let i = 1; i < spec.nodes.indexOf(knockNode); i++) {
-      drain(engine, `breach ${spec.nodes[i]!.ip}`);
-      settle(engine);
-      solveCurrentLock(engine, spec);
-      settle(engine);
-    }
+    // walk the graph up to (not including) it
+    breachToNeighbor(engine, spec, knockNode.id);
     drain(engine, `breach ${knockNode.ip}`);
     settle(engine);
     engine.profile.cash = 1000;
@@ -128,12 +123,7 @@ describe('cipher lock', () => {
     const spec = engine.getValidatedSpec(4, 'CG-OMEN-04');
     const ciphNode = spec.nodes.find((n) => n.puzzleFamily === 'cipher');
     if (!ciphNode) return;
-    for (let i = 1; i < spec.nodes.indexOf(ciphNode); i++) {
-      drain(engine, `breach ${spec.nodes[i]!.ip}`);
-      settle(engine);
-      solveCurrentLock(engine, spec);
-      settle(engine);
-    }
+    breachToNeighbor(engine, spec, ciphNode.id);
     drain(engine, `breach ${ciphNode.ip}`);
     settle(engine);
     engine.profile.cash = 1000;
@@ -245,6 +235,14 @@ function freshEngine(seed: string, contract: number): GameEngine {
   drain(engine, `run ${contract}`);
   void seed;
   return engine;
+}
+
+/** Own and stand on a node linked to `id`. */
+function breachToNeighbor(engine: GameEngine, spec: ReturnType<GameEngine['getValidatedSpec']>, id: string): void {
+  drain(engine, 'scan');
+  settle(engine);
+  const via = spec.edges.find(([a, b]) => b === id || a === id)!;
+  breachTo(engine, spec, via[0] === id ? via[1] : via[0]);
 }
 
 /** Answer whatever lock is open, from the answer key. */

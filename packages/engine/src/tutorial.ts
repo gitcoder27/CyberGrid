@@ -1,4 +1,5 @@
 import { CONFIG } from './config.js';
+import { tutorialDescriptor } from './identity.js';
 import type { MissionSpec } from './types.js';
 import { Vfs } from './vfs.js';
 
@@ -23,8 +24,7 @@ export function tutorialMission(): MissionSpec {
         {
           name: 'memo.txt',
           tag: 'plain',
-          content:
-            'memo: if you are reading this from outside the building, please stop.\n management',
+          content: 'memo: if you are reading this from outside the building, please stop.\n management',
         },
       ],
       dirs: [],
@@ -40,6 +40,8 @@ export function tutorialMission(): MissionSpec {
   ];
 
   return {
+    descriptor: tutorialDescriptor(),
+    draw: { seed: CONFIG.tutorial.seed, relax: 0 },
     kind: 'tutorial',
     index: 0,
     seed: CONFIG.tutorial.seed,
@@ -49,27 +51,17 @@ export function tutorialMission(): MissionSpec {
       'A guided job on a friendly little box. Follow the glow: the next command is always ' +
       'highlighted, and TAB fills it in for you.',
     handlerLines: [
-      'You\'re in. That glow around a command? That\'s your next move.',
+      "You're in. That glow around a command? That's your next move.",
       'Type it — or press TAB and let the terminal do the typing.',
     ],
+    debrief: 'Not bad for a first night.',
     nodes: [
-      {
-        id: 'n0',
-        ip: '10.0.0.1',
-        hostname: 'gatewatch',
-        security: 0,
-        puzzleFamily: 'sequence',
-        root: entryRoot,
-      },
-      {
-        id: 'n1',
-        ip: '10.0.0.12',
-        hostname: 'ledgercube',
-        security: 1,
-        puzzleFamily: 'sequence',
-        root: nodeRoot,
-      },
+      { id: 'n0', ip: '10.0.0.1', hostname: 'gatewatch', security: 0, puzzleFamily: 'sequence', root: entryRoot, pos: { row: 0, col: 1 } },
+      { id: 'n1', ip: '10.0.0.12', hostname: 'ledgercube', security: 1, puzzleFamily: 'sequence', root: nodeRoot, pos: { row: 1, col: 1 } },
     ],
+    edges: [['n0', 'n1']],
+    objective: { type: 'flagged', required: 1, targetIds: ['target-1'] },
+    modifier: null,
     targetIds: ['target-1'],
     requiredTargets: 1,
     puzzleAnswers: {

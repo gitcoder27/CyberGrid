@@ -1,16 +1,17 @@
+import { campaignDescriptor, customDescriptor } from '../src/identity.js';
 import { describe, expect, it } from 'vitest';
 import { CONFIG } from '../src/config.js';
 import { GameEngine } from '../src/game.js';
 import { buildValidatedMission } from '../src/validate.js';
 import { transferSecondsFor, hintCostFor } from '../src/shop.js';
 import { TELEMETRY_DEFAULT } from '../src/types.js';
-import type { SaveBlob, EngineEvent } from '../src/types.js';
+import type { SaveBlob, SaveBlobV1, EngineEvent } from '../src/types.js';
 import { bootToHome, drain, settle, tickWhile, traceOf } from './helpers.js';
 
 function makeSave(overrides: {
   cash?: number;
   upgrades?: Record<string, number>;
-} = {}): SaveBlob {
+} = {}): SaveBlobV1 {
   return {
     version: 1,
     profile: {
@@ -27,7 +28,7 @@ function makeSave(overrides: {
   };
 }
 
-function engineWith(save: SaveBlob, now: () => number = () => 1_000_000): GameEngine {
+function engineWith(save: SaveBlobV1, now: () => number = () => 1_000_000): GameEngine {
   const engine = new GameEngine({ fast: true, save, now });
   bootToHome(engine);
   return engine;
@@ -111,7 +112,7 @@ describe('the Broker\'s market: shop & buy', () => {
     drain(engine, 'run 1');
     drain(engine, 'scan');
     settle(engine);
-    const spec = buildValidatedMission(1, 'CG-OMEN-01');
+    const spec = buildValidatedMission(campaignDescriptor(1));
     drain(engine, `breach ${spec.nodes[1]!.ip}`);
     settle(engine);
     expect(engine.getState().mission!.puzzle!.timeLimit).toBe(
@@ -127,7 +128,7 @@ describe('wire analytics: telemetry', () => {
   it('counts a full clean run: locks solved, first breach timing, completion', () => {
     const engine = engineWith(makeSave());
     drain(engine, 'run 1');
-    const spec = buildValidatedMission(1, 'CG-OMEN-01');
+    const spec = buildValidatedMission(campaignDescriptor(1));
     drain(engine, 'scan');
     settle(engine);
     for (let i = 1; i < spec.nodes.length; i++) {
@@ -166,7 +167,7 @@ describe('wire analytics: telemetry', () => {
     drain(engine, 'run 1');
     drain(engine, 'scan');
     settle(engine);
-    const spec = buildValidatedMission(1, 'CG-OMEN-01');
+    const spec = buildValidatedMission(campaignDescriptor(1));
     drain(engine, `breach ${spec.nodes[1]!.ip}`);
     settle(engine);
     drain(engine, 'skip');
@@ -232,7 +233,7 @@ describe('wire analytics: telemetry', () => {
       settings: { volume: 0.5, muted: false, crt: true, motion: true },
       history: [],
       session: null,
-    } as unknown as SaveBlob;
+    } as unknown as SaveBlobV1;
     const engine = engineWith(oldSave);
     expect(engine.profile.cash).toBe(250);
     expect(engine.profile.upgrades).toEqual({});
@@ -244,7 +245,7 @@ describe('wire analytics: telemetry', () => {
 
 /** Breach + solve the first loot node and download one target from it. */
 function playFirstTarget(engine: GameEngine): void {
-  const spec = buildValidatedMission(1, 'CG-OMEN-01');
+  const spec = buildValidatedMission(campaignDescriptor(1));
   drain(engine, 'scan');
   settle(engine);
   for (let i = 1; i < spec.nodes.length; i++) {

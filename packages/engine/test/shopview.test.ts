@@ -1,10 +1,10 @@
 import { it } from 'vitest';
 import { GameEngine, TELEMETRY_DEFAULT } from '../src/index.js';
-import type { SaveBlob } from '../src/types.js';
+import type { SaveBlobV1 } from '../src/types.js';
 import { bootToHome, drain } from './helpers.js';
 
 it('shop transcript', () => {
-  const save: SaveBlob = {
+  const save: SaveBlobV1 = {
     version: 1,
     profile: {
       cash: 1800,

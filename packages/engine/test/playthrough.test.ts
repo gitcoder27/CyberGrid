@@ -6,10 +6,10 @@
  */
 import { it } from 'vitest';
 import { Bridge } from '../../../app/src/engine/bridge.js';
-import type { SaveBlob } from '../src/types.js';
+import type { SaveBlobV1 } from '../src/types.js';
 import { TELEMETRY_DEFAULT } from '../src/types.js';
 
-const save: SaveBlob = {
+const save: SaveBlobV1 = {
   version: 1,
   profile: { cash: 0, xp: 0, contractsDone: 0, tutorialDone: false, upgrades: {}, telemetry: { ...TELEMETRY_DEFAULT } },
   settings: { volume: 0.8, muted: false, crt: true, motion: true },

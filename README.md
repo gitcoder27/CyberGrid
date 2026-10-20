@@ -2,11 +2,17 @@
 
 **A tension game disguised as a terminal.** You are a freelance operator taking
 contracts from *the Broker* over a burner terminal. Scan a network, breach its
-nodes by beating their locks, steal the flagged files — and get out before the
-**trace meter** hits 100%. Every second on a foreign network burns you; every
-log you wipe buys margin; every download is loud.
+nodes by beating their locks, take what the job asks for — and get out before
+the **trace meter** hits 100%. Every second on a foreign network burns you;
+every log you wipe buys margin; every transfer is loud.
 
-Week-1 MVP per `docs/cybergrid-prd-v2.md` (§6, §18) — 100% client-side.
+100% client-side: no backend, no accounts, no analytics. Progress lives in this
+browser's `localStorage`.
+
+> Design history: `docs/cybergrid-prd.md` (v1) and `docs/cybergrid-prd-v2.md`
+> are the original design documents and are kept as historical records.
+> `docs/cybergrid-review-and-improvement-plan.md` and
+> `docs/implementation-notes.md` describe the later decisions this build ships.
 
 ---
 
@@ -17,229 +23,199 @@ npm install
 npm run dev        # → http://localhost:5173
 ```
 
-That's the whole install. No backend, no database, no API keys. `npm run build`
-produces a static bundle in `app/dist` deployable to any static host; `npm test`
-runs the full headless test suite (engine + UI bridge).
+`npm run build` type-checks and writes a static bundle to `app/dist` (any static
+host works; nothing is deployed by this repo).
 
 ## How to play (90-second version)
 
-1. **Boot** — press any key to skip the BIOS chatter.
-2. **Tutorial** — the handler suggests it on first run (`tutorial`). The next
-   command always glows (bottom-right chip); **TAB fills it in**. One lock is
-   pre-disarmed: whatever you type first succeeds. `skipintro` leaves anytime.
-3. **Contract** — `contracts` lists the board, `run 1` accepts. Then:
-   - `scan` — map the chain: security, loot, flagged files.
-   - `breach <ip>` — attack an adjacent node; a lock opens on your terminal:
-     - *packet interval lock*: `input 16`
-     - *knock sequence*: ports glow, then go dark — `knock 22 443 8080`
-       (you may also knock one port at a time)
-     - *cipher plaque*: decode the Caesar-shifted word — `input WORD`
-       (`cat plaque.txt` on the node leaks the wheel offset)
-   - `cd /srv` · `ls` · `download <file>` — flagged files pay; transfers run
-     +5 trace/s.
+1. **Boot** — any key skips the BIOS chatter. A typed command still runs.
+2. **Tutorial** — `tutorial`. The next command glows in the input line;
+   **TAB fills it**, Enter runs it. One pre-disarmed lock teaches the idea.
+3. **Contract** — `contracts` shows the board, `run 1` jacks in. Then:
+   - `scan` — map the network (left panel): security, lock type, loot, logs,
+     links, objective markers.
+   - `breach <ip>` — attack a node next to one you own. A lock docks above the
+     input line with its fuse:
+     - *packet interval lock*: four numbers, one rule → `input 16`
+     - *knock sequence*: ports glow, then go dark → `knock 22 443 8080`
+     - *cipher plaque*: Caesar-shifted word. The wheel tag (a file somewhere on
+       the network, often the node you stand on) prints the decoding strip into
+       the lock panel. `cat` works **while the lock is open**.
+   - `download <file>` / `upload <payload> <dir>` — transfers burn trace while
+     they run; the dock shows progress, seconds left and the trace rate.
    - `rm /var/log/auth.log` — every wiped log is **−8 trace**.
-   - `disconnect` — below 50% trace: **CLEAN EXIT**, payout ×1.5. Above: you
-     keep the loot, the Broker smiles less. At 100%: busted — loot gone, XP
-     halved, `[ENTER]` retries the same seed instantly.
-   - Panic buttons: `proxy hop` (−25 trace, once) and `decoy` (blinds the
-     watchdog ~25s, once). `skip` forces any lock open (+25 trace), `hint`
-     buys a clue (cash). **You are never hard-stuck.**
+   - `disconnect` — under 50% trace with the objective done: **CLEAN EXIT**
+     (payout ×1.5). Over 50%: **HOT EXIT**. Objective unfinished: **EXTRACTED
+     EARLY** (loot only, no contract bonus). At 100%: **BUSTED** — loot lost,
+     XP halved, and an empty **Enter** on the results screen retries the same
+     job.
+   - Panic buttons work mid-lock: `proxy` (−25 trace), `decoy` (sends the
+     watchdog to the far end of the network), `skip` (forces a lock, +25),
+     `hint` (cash). **You are never hard-stuck.**
 
-### Command list
+### What a job can be
 
-| Home | Mission |
+| | |
+|---|---|
+| **Topology** | *chain* (one road) or *fork*: a long road of softer locks vs a hot road with one hard lock, rejoining at a junction. The coach never picks your road. |
+| **Vault** | optional side room on forked jobs — extra loot, extra trace. Breaching it names the loot paths. |
+| **Objective** | *flagged files* (steal N), *dossier* (one specific file on a deep node), *payload* (upload your implant to a drop directory). |
+| **Modifier** | *NOISY LINK* (transfers +50% trace, +$180) or *ACTIVE PATROL* (watchdog from the start, moving twice as fast, +$180). |
+
+The ten contracts introduce these in order: chains (1–3), first fork (4),
+dossier (5), noisy link (6), payload (7), patrol (8), then combinations (9–10).
+Finishing contract 10 closes the campaign; `epilogue` is the Broker's last
+message, and every contract stays replayable.
+
+### Progression
+
+- **Ranks** (XP): Script Kiddie → Operator (300) → Breacher (800) → Ghost (1600)
+  → Elite Operator (3000). Ranks unlock **modules** for the single equipment
+  slot — free, swapped with `equip` at home, sealed during a job:
+  - `burst` uplink (Operator): transfers 20% faster, ~20% more total trace.
+  - `quiet` uplink (Breacher): transfers 25% slower, ~25% less total trace.
+- **Shop** (`shop`, `buy <id>`): permanent upgrades — `relay` (+1 proxy),
+  `drone` (+1 decoy), `overclock` (faster transfers), `ghosting` (less idle
+  creep), `crowbar` (longer fuses), `insider` (cheaper hints).
+- **Records** (`records`): best result per job and rig (completed > clean >
+  payout > lower trace > faster), daily attempts, recent runs. Local only.
+- **Daily challenge** (`daily`, `daily start`): one job per UTC date, the same
+  for everyone, on a fixed stock rig. The first run of the day is the recorded
+  attempt (reloads and `resume` keep it alive); later runs are practice.
+- **Custom and shared jobs**: `run seed <anything> [--tier 1-10]`, `share`
+  prints a code, `run <CODE>` rebuilds that exact job on any terminal.
+  Custom jobs pay half the contract bonus and never advance the campaign.
+- **Stats** (`stats`): local self-report — completion, outcomes by job type,
+  objective and lock family, lock skip rate, rhythm.
+
+### Commands
+
+| Home / results | Mission |
 |---|---|
 | `help` `man <cmd>` | `scan` `connect <ip>` `breach <ip>` |
-| `contracts` | `ls` `cd <dir>` `cat <file>` |
-| `run <n>` / `run seed <SEED>` | `download <file>` (aliases `dl` `scp` `get`) |
-| `tutorial` | `rm <path>` `disconnect` (aliases `exit` `quit` `escape`) |
-| `profile` `settings` | `input <x>` `knock <ports…>` `skip` `hint` |
-| `shop` · `buy <id>` · `stats` | `proxy` `decoy` |
-| `resume` `abandon` `wipe confirm` | `help` `man <cmd>` `profile` `clear` |
+| `contracts` `run <n>` `run seed <S>` `run <CODE>` | `ls` `cd <dir>` `cat <file>` |
+| `tutorial` `daily` `daily start` | `download <file>` `upload <payload> <dir>` |
+| `retry` (empty Enter on results) `home` | `rm <path>` `disconnect` |
+| `shop` `buy <id>` `loadout` `equip <m>` | `input <x>` `knock <ports…>` `skip` `hint` |
+| `records` `stats` `profile` `share` | `proxy` `decoy` `share` `clear` |
+| `settings` `resume` `abandon` `epilogue` `wipe confirm` | `help` `man <cmd>` `profile` |
 
-Case-insensitive, aliases everywhere, typos get "did you mean", TAB completes
-verbs / paths / IPs, ↑↓ is history.
+Case-insensitive, aliases everywhere (`dl`, `exit`, `ssh`…), typos get "did you
+mean". The input line: **TAB** fills the glowing suggestion, then completes
+verbs, paths and IPs; **↑/↓** history; **Ctrl+C** clears; **Esc** clears, and
+**Shift+Tab** (or Esc then Tab) leaves the field. Map nodes and HUD buttons
+only *compose* commands into the input line — Enter still runs them.
+
+`settings`: `volume`, `mute`, `crt`, `motion` (shake/glitch/flash; also off
+under the OS "reduce motion" preference), `typing` (typewriter text), `assist`
+(next-move suggestions).
+
+### Accessibility and layout
+
+- A screen-reader log mirrors terminal output; lock, outcome and fuse events
+  are announced in a polite status region. The xterm canvas is decorative.
+- Everything is reachable by keyboard; a skip link jumps to the command line.
+- Below 1180 px the map becomes a drawer; below 760 px intel does too, the
+  input font grows to 16 px (no mobile zoom-on-focus), and the urgent strip
+  (trace, objective, tools, lock, transfer) stays docked above the input.
+- A hidden tab pauses the mission clock and says so when you return.
 
 ---
+
+## Saves and compatibility
+
+- Current save: `cybergrid.save.v2` (schema v2: profile, settings, history,
+  parked run, records, daily attempts).
+- An existing `cybergrid.save.v1` is migrated on first load — cash, XP,
+  purchases, cleared contracts and settings are kept, and a parked legacy run
+  resumes on the **same** generation-1 network (open lock, fuse, transfer and
+  all). The v1 key is left in place as a backup.
+- An unreadable save is copied to `cybergrid.save.corrupt` before a fresh
+  profile starts. A parked run that can't be rebuilt is reported with an
+  `abandon` path instead of crashing.
+- Autosave: every 5 s during a run, on blur, on tab hide and on page close.
+
+## Mission identity
+
+Every job has a descriptor (generation, mode, seed, tier, topology, objective,
+modifier) and a share code: `CG1-<gen><mode><tier><topology><objective><modifier>-<base32 seed>-<checksum>`.
+Generation 1 (the original linear chains) is frozen so legacy runs and old
+seeds rebuild byte-for-byte; generation 2 adds graphs, objectives and
+modifiers. Before any generated job starts, an oracle plays it through the real
+engine (both fork roads, with think time) and it must finish without busting
+(peak < 100, final ≤ 85, clean exit possible on early tiers). Failed draws are
+redrawn deterministically, then relaxed, then a verified safe template is used.
 
 ## Architecture
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│  app/  (React + Vite — a view layer, nothing more)         │
-│                                                            │
-│  TerminalView ── xterm.js (WebGL), typewriter writer,      │
-│                  TAB/history/forgiving input               │
-│  Hud         ── trace meter, node map, objectives, tools,  │
-│                 handler chat (reads snapshots only)        │
-│  Synth       ── Web Audio, 100% synthesized (no assets)    │
-│  Bridge      ── the seam: submit(cmd) → events; tick(dt);  │
-│                 routes events to queues the UI drains      │
-└────────────────────────┬───────────────────────────────────┘
-                         │ submit(line) / tick(dt) / getState() / serialize()
-┌────────────────────────▼───────────────────────────────────┐
-│  packages/engine  (@cybergrid/engine — no DOM, no deps)    │
-│                                                            │
-│  game.ts      state machine: home/mission/post, trace &    │
-│               escalation, watchdog, tools, scoring, save   │
-│  missions.ts  seeded generator (linear chain, PRD §15)     │
-│  validate.ts  solvability gate: simulates a perfect run    │
-│               through the real engine before a mission ships│
-│  puzzles.ts   sequence · port-knock · cipher (PRD §8)      │
-│  commands.ts  verb table, diegetic man pages, "did you     │
-│               mean" (Levenshtein)                          │
-│  tutorial.ts  scripted mission 0 (PRD §11)                 │
-│  vfs.ts       per-node virtual file system                 │
-│  config.ts    EVERY tunable number lives here              │
-│  rng.ts       xmur3+mulberry32, serializable state         │
-└────────────────────────────────────────────────────────────┘
+app/  (React 18 + Vite 5 — presentation only)
+  terminal/   xterm output (WebGL addon lazy-loaded), typewriter writer,
+              native <input> command line (TAB, history, IME-safe)
+  hud/        trace meter, graph map, node inspector, lock/transfer/result dock,
+              objective, tools, the Broker's panel
+  engine/     Bridge: submit(line) → events; frame(dt); transcript; announcer
+  persistence localStorage adapter (v2 + v1 backup + corrupt copy)
+  audio/      synthesized Web Audio (no assets)
+
+packages/engine  (@cybergrid/engine — no DOM, no runtime deps)
+  game.ts         state machine (boot/home/mission/post), commands, trace,
+                  watchdog, tools, transfers, coach, save/restore
+  identity.ts     descriptors, share codes, daily seeds
+  gen/            generation 1 (frozen chains) and generation 2 (graphs)
+  graph.ts        neighbors, paths, frontier
+  objectives.ts   flagged / dossier / payload evaluation
+  equipment.ts    modules, upgrades, effective rig numbers
+  results.ts      outcomes, scoring, records ordering
+  persistence.ts  save schema, v1 → v2 migration, legacy session conversion
+  validate.ts     oracle playthrough + validated build schedule
+  simulate.ts     deterministic balance scenarios (policies × loadouts × routes)
+  puzzles.ts · commands.ts · tutorial.ts · vfs.ts · text.ts
+  config.ts       every tunable number
 ```
 
-**The whole game loop is testable headless**: the engine exposes
-`submit(commandString) → events` and `tick(dtSeconds) → events`; React only
-renders snapshots and drains event queues. Tests drive the same API the UI
-does — including mission solvability, which is validated by *playing* a perfect
-run through the real engine (`validate.ts`).
+Game rules live in the engine; React renders snapshots and submits command
+strings exactly as typed.
 
-Determinism: all randomness flows from the mission seed (same seed → byte-identical
-mission spec). Fixed contract seeds (`CG-OMEN-01`…`CG-OMEN-10`) are identical for
-every player; `run seed <anything>` accepts custom shares.
-
-Persistence: localStorage (`cybergrid.save.v1`) — cash/XP/rank/contracts +
-settings autosave after every mission, on tab blur, and every 5s mid-run.
-A mid-run snapshot offers `resume` / `abandon` on return (PRD §4.3).
-
-## Trace system (the game)
-
-| Action | Trace |
-|---|---|
-| idle on a foreign network | +0.15/s (×2 under admin alert) |
-| `connect` hop | +2 |
-| `breach` (by security 1/2/3) | +8 / +11 / +15 |
-| wrong answer or expired fuse | +15 |
-| downloading | +5/s while transferring |
-| `rm` a log | **−8** |
-| `skip` a lock | +25 |
-| `proxy hop` | −25 (one per job) |
-
-Escalations: **50%** a watchdog daemon spawns and patrols — breaching its node
-costs **double** (a `decoy` blinds it). **75%** admin alert: creep doubles, the
-room turns red, alarm pitch climbs. **100%** busted: cutscene, loot lost, XP
-halved, one-keypress retry. Under 50% at `disconnect`: clean exit, payout ×1.5.
-
-## The Broker's market & the tuning loop
-
-**`shop` / `buy <id>`** — cash is no longer just a score. Six permanent upgrades
-(PRD §10's list, lite edition) apply to every future job:
-
-| id | effect | max |
-|---|---|---|
-| `relay` | +1 proxy hop per job | 2 |
-| `drone` | +1 decoy per job | 1 |
-| `overclock` | transfers 15% faster per level (and trace-lighter) | 3 |
-| `ghosting` | idle trace creep −20% per level | 2 |
-| `crowbar` | lock fuses +8s per level | 2 |
-| `insider` | hints cost 40% less | 1 |
-
-Prices escalate ×1.6 per level (catalog in `CONFIG.shop`) — a ~$4,000 sink that
-paces the campaign at roughly 10–20 missions. No refunds, obviously.
-
-**`stats`** — the PRD §17 tuning loop made legible. The engine observes play
-(pure counters in the save blob: runs by outcome, locks cracked vs skipped,
-time to first breach, hints/proxies/decoys burned, final trace, sessions via a
-30-min activity gap) and `stats` scores your actual numbers against the targets:
-
-```
-───[ WIRE ANALYTICS — self-report ]────────────────
-  runs       12 started · 9 completed · 2 busted · 1 short
-  completion 75% (target ≥70%)
-      ✓ on target
-  first hit  ~41s to first breach (target <90s)
-  locks      34 met · 26 cracked · 5 skipped (16%) · 9 failures
-      ✓ sweet spot (10–20%)
-  rhythm     ~2.3 runs/session over 4 sessions (target ≥2)
-```
-
-Tutorial runs are excluded so they never pollute the signal, and telemetry is
-observation-only — it never touches game outcomes or the mission RNG.
-
-## Decisions made (where the PRD was silent or self-contradictory)
-
-1. **Idle creep retuned to +0.15/s** (PRD §7 says +1/s). At +1/s a 3-minute run
-   accrues 180 trace — every mission would bust, making §16 (3–8 min runs,
-   ≥70% completion) and §7's clean-exit bonus mathematically impossible. All
-   *per-action* costs ship exactly as §7 specifies. The knob is
-   `CONFIG.trace.idlePerSecond`.
-2. **Breach ⇒ connected.** `breach` drops you onto the node it opens;
-   `connect` exists for hopping back to nodes you already own (retreating for
-   files you passed) at +2 trace. Otherwise the two verbs blur together.
-3. **Connect reaches any owned node**, not just chain neighbors — you tunnel
-   through your own breaches. `breach` stays strictly adjacent, which preserves
-   the linear-chain route-planning game.
-4. **Puzzle answer verbs** (`input` / `knock`) live inside the breach flow
-   rather than the 8-verb count; bare answers (`16`, `GHOST`) also work. The
-   PRD's verb table doesn't cover puzzle input; v1's example used `input`.
-5. **Tools ship pre-equipped.** The upgrade shop is Phase 2, so every job loads
-   1 proxy hop + 1 decoy. §7's `sleep <node>` is cut (needs hiding mechanics
-   that only pay off with the shop's tool economy).
-6. **Payouts** follow §7's multiplier reading: per-file cash ×1.5 on clean
-   exit, + flat contract bonus, + $25/log. Busted keeps 50% XP, $0 cash — and
-   an *incomplete* extraction (disconnecting with fewer than the required
-   files) pays loot but no contract bonus, with its own copy ("EXTRACTED
-   EARLY") so it never reads as success.
-7. **Port-knock memory** displays the sequence as glowing text, then goes dark
-   after ~4.5s. Players *can* scroll back to peek — accepted for MVP: it costs
-   idle trace, and terminal scrollback is the fiction anyway.
-8. **De-escalation is possible**: dropping below 75 clears the alert; below 50
-   the watchdog despawns. The PRD only describes escalation; silence on the way
-   down would make proxy hops feel rigged.
-9. **Difficulty modes** (§16 Casual/Standard/Hard) are cut from the MVP; every
-   knob they'd turn already lives in `config.ts`.
-10. **Contract 1 sends the tutorial's rules live**: lock families are gated so
-    cipher plaques debut on contract 4+ (§8 "Week 1"), knock sequences from
-    mission 1 (§8 "Mission 1").
-11. **Shop-lite and telemetry were pulled forward** from the Phase-2/§17 plans
-    after first play sessions: the shop ships a bounded catalog (no verbs are
-    purchasable yet — that stays Phase 2), and telemetry is local-only counters
-    in the save blob (no analytics leave the browser).
-
-## What was cut (per scope discipline)
-
-Backend/server/leaderboards, upgrade shop, narrative campaign (the Broker's
-2-line handler chats carry the tone), daily challenges, ghost races, mobile
-input mode — all Phase 2+. Also cut from §7–§16: `sleep`, connection maze /
-password audit / priv-esc puzzles (Phase 2/3 families), topology archetypes
-beyond the linear chain, mission modifiers (ICE, dark runs, decoy files, rival
-ghost), difficulty modes. Nothing in-scope is stubbed; everything listed as
-shipped is implemented and tested.
-
-## Tests
+## Tests and checks
 
 ```bash
-npm test          # engine (61) + bridge (4), all headless
+npm test               # engine (vitest, 139 tests) + app bridge (8 tests)
+npm run typecheck      # engine, app, and browser tests
+npm run build          # production bundle
+npm run sim            # deterministic balance report; fails if the oracle can't finish a job
+npm run test:e2e       # Playwright browser journeys against the production build
+CG_CAMPAIGN=1 npm run test:e2e -- e2e/campaign.e2e.ts   # opt-in: all ten contracts from the keyboard (~5 min)
 ```
 
-Coverage highlights: every fixed contract and the tutorial are validated
-solvable (perfect-run simulation through the real engine, with margin ≤ 85
-trace, clean exit achievable through contract 3); same-seed → identical
-mission; trace math per §7 (breach table, +15 mistakes, −8 logs, +5/s
-transfers, 2× alert creep); escalation at 50/75/100 including watchdog doubling
-and the busted payout path; all three puzzle families (generation, grading,
-hints, skip, fuse timeout, forced tutorial success); resume-from-serialize;
-autocomplete and forgiving parsing; rank thresholds.
+First-time browser setup: `npx playwright install chromium`.
+
+The browser journeys type on the real keyboard and solve locks by reading the
+lock panel and the screen-reader transcript — no engine back doors. They cover
+the first session (tutorial → contract → results → board), empty-Enter retry,
+TAB/history/paste, save → reload ×2 → resume with an open lock, v1 migration
+mid-transfer, cipher clue + panic tools mid-lock, fuse burn / skip / bust /
+retry, each objective type on either road plus the vault, equip → final
+contract → epilogue → records, daily recorded vs practice (with a fake clock)
+and daily resume, layouts at 390/640/768/1280 px, keyboard map inspection,
+mute, reduced motion and IME composition.
+
+## Scope
+
+Shipped: everything above. Not shipped (future ideas from the improvement
+plan's backlog): online leaderboards or ghost races, accounts or cloud saves,
+new lock families (connection maze, password audit, privilege escalation),
+`sleep`, additional modifiers (ICE, dark runs, decoy files, rivals),
+difficulty presets.
 
 ## Repo map
 
 ```
-packages/engine/     @cybergrid/engine — deterministic game core (TypeScript, zero deps)
-  src/config.ts      every tunable number
-  src/game.ts        GameEngine: submit/tick/getState/serialize
-  src/validate.ts    perfect-run solvability gate
-  test/              61 headless tests incl. full playthrough transcript
-app/                 React 18 + Vite 5 + @xterm/xterm (WebGL) client
-  src/terminal/      xterm wiring, typewriter writer
-  src/hud/           trace meter, node map, objectives, handler chat
-  src/audio/         synthesized SFX + trace-tracked alarm
-  src/bridge.test.ts headless tests for the UI's event routing
-docs/                PRD v2 (design source of truth) + v1
+packages/engine/     deterministic game core (TypeScript)
+  scripts/sim.ts     `npm run sim`
+  test/              unit, regression, migration, identity, mode and playthrough tests
+  test/fixtures/     legacy v1 saves and frozen generation-1 fingerprints
+app/                 React client
+  e2e/               Playwright journeys (player.ts = the keyboard "player")
+docs/                PRDs (historical), improvement plan, implementation notes, playtest script
 ```

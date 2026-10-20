@@ -1,11 +1,12 @@
+import { campaignDescriptor, customDescriptor } from '../src/identity.js';
 import { describe, expect, it } from 'vitest';
 import { GameEngine } from '../src/game.js';
 import { buildValidatedMission } from '../src/validate.js';
-import type { SaveBlob } from '../src/types.js';
+import type { SaveBlob, SaveBlobV1 } from '../src/types.js';
 import { TELEMETRY_DEFAULT } from '../src/types.js';
 import { bootToHome, settle, tickWhile, traceOf } from './helpers.js';
 
-function makeSave(overrides: Partial<SaveBlob> = {}): SaveBlob {
+function makeSave(overrides: Partial<SaveBlobV1> = {}): SaveBlobV1 {
   return {
     version: 1,
     profile: { cash: 0, xp: 0, contractsDone: 0, tutorialDone: false, upgrades: {}, telemetry: { ...TELEMETRY_DEFAULT } },
@@ -224,7 +225,7 @@ function freshWithContract(): GameEngine {
 function answerLock(engine: GameEngine): void {
   const puzzle = engine.getState().mission!.puzzle;
   if (!puzzle) return;
-  const spec = buildValidatedMission(1, 'CG-OMEN-01');
+  const spec = buildValidatedMission(campaignDescriptor(1));
   const a = spec.puzzleAnswers[puzzle.nodeId]!;
   if (a.family === 'portknock') engine.submit(`knock ${a.ports.join(' ')}`);
   else if (a.family === 'cipher') engine.submit(`input ${a.word}`);
@@ -232,7 +233,7 @@ function answerLock(engine: GameEngine): void {
 }
 
 function finishRun(engine: GameEngine): void {
-  const spec = buildValidatedMission(1, 'CG-OMEN-01');
+  const spec = buildValidatedMission(campaignDescriptor(1));
   for (let i = 1; i < spec.nodes.length; i++) {
     if (engine.mode !== 'mission') return;
     const node = spec.nodes[i]!;

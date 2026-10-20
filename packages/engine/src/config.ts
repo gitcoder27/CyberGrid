@@ -2,6 +2,14 @@
  * CyberGrid — single source of truth for every tunable constant.
  * Difficulty tuning must never require touching game logic: change numbers here only.
  *
+ * Two kinds of numbers live here:
+ *  - RUNTIME rules (trace costs, fuses, rewards). Changing them changes how a
+ *    run plays, so bump `rulesVersion` to keep personal records comparable.
+ *  - GENERATION tables (`generation.v2`, `campaign`). Changing them changes
+ *    which network a seed produces, i.e. mission identity. They are frozen per
+ *    generation version: add a new generation instead of editing them.
+ *    (Generation 1 lives, fully pinned, in gen/v1.ts.)
+ *
  * Trace economy note (recorded in README):
  * PRD §7 lists idle creep at +1/s, but §16 requires 3–8 minute runs with ≥70% completion
  * and §7 requires clean exits under 50% trace. At +1/s a 3-minute run accrues 180 trace,
@@ -11,6 +19,11 @@
 export const CONFIG = {
   /** Seed prefix baked into fixed contract seeds; swap to retheme all 10 contracts. */
   season: 'OMEN',
+
+  /** Records from different rules versions are never compared. */
+  rulesVersion: 2,
+  /** Generation used for new missions. */
+  currentGen: 2 as 1 | 2,
 
   trace: {
     /** Baseline creep per second while on a foreign network (PRD retune, see header). */
@@ -25,6 +38,10 @@ export const CONFIG = {
     failedPuzzle: 15,
     /** Trace per second while a download transfer is running (PRD §7: +5/s). */
     downloadPerSecond: 5,
+    /** Trace per second while an upload runs (payload missions). */
+    uploadPerSecond: 4,
+    /** Transfers from the node the watchdog is sniffing cost this much more trace. */
+    watchdogTransferMultiplier: 2,
     /** Trace removed per log file deleted (PRD §7). */
     rmLog: -8,
     /** `skip` on an open puzzle (PRD §3.2). */
@@ -49,8 +66,14 @@ export const CONFIG = {
     decoysPerMission: 1,
     /** Seconds the watchdog is occupied by a decoy. */
     decoyOccupySeconds: 25,
-    /** Seconds between watchdog patrols (moves to an adjacent-ish node). */
+    /** Seconds between watchdog patrols (moves to a linked node). */
     watchdogMoveSeconds: 22,
+  },
+
+  /** Presentation delays (seconds). Short on purpose; any key skips typewriter text. */
+  delays: {
+    scan: 0.9,
+    breachSpinUp: 0.7,
   },
 
   puzzle: {
@@ -62,6 +85,8 @@ export const CONFIG = {
     hintCost: 60,
     /** Seconds the port sequence glows before the ports go dark. */
     knockShowSeconds: 4.5,
+    /** A bought knock hint re-broadcasts the sequence for this long. */
+    knockHintShowSeconds: 3,
     /** Common ports the knock locks draw from. */
     knockPortPool: [22, 53, 80, 143, 443, 587, 1521, 3306, 3389, 8080, 8443, 9090],
   },
@@ -71,29 +96,101 @@ export const CONFIG = {
     secondsPerFile: 1.6,
   },
 
-  /** Simulated "operator think time" per action used by the perfect-run validator. */
+  upload: {
+    /** Seconds to push a payload onto the drop point. */
+    secondsPerFile: 2.2,
+  },
+
+  /** One optional slot, chosen at home, fixed for the run. Free once unlocked.
+   *  Multipliers compose with the permanent overclock upgrade. */
+  modules: [
+    {
+      id: 'burst',
+      name: 'burst uplink',
+      unlockRank: 'Operator',
+      transferDuration: 0.8,
+      transferTraceRate: 1.5,
+      blurb: 'transfers 20% faster, ~20% more total transfer trace — beat the patrol to the door',
+    },
+    {
+      id: 'quiet',
+      name: 'quiet uplink',
+      unlockRank: 'Breacher',
+      transferDuration: 1.25,
+      transferTraceRate: 0.6,
+      blurb: 'transfers 25% slower, ~25% less total transfer trace — patience is camouflage',
+    },
+  ] as readonly ModuleDef[],
+
+  /** Mission modifiers: at most one per job, never on introductory contracts. */
+  modifiers: {
+    noisy: {
+      name: 'NOISY LINK',
+      effect: 'transfers burn 50% more trace',
+      transferTraceMultiplier: 1.5,
+      bonus: 180,
+    },
+    patrol: {
+      name: 'ACTIVE PATROL',
+      effect: 'a watchdog patrols from the start and moves twice as fast',
+      watchdogMoveMultiplier: 0.5,
+      bonus: 180,
+    },
+  },
+
+  /** Reward policy per mode. Only campaign completion advances the campaign. */
+  modes: {
+    campaignBonusFactor: 1,
+    customBonusFactor: 0.5,
+    dailyBonusFactor: 1,
+    dailyPracticeBonusFactor: 0.5,
+    /** Difficulty for a bare `run seed <SEED>` (fixed — never your progress). */
+    customDefaultTier: 4,
+  },
+
+  daily: {
+    /** Introductory mid-tier difficulty, the same for everyone. */
+    tier: 5,
+    /** Fixed starter rig: no module, no permanent upgrades. */
+    loadout: { module: null, upgrades: {} } as { module: null; upgrades: Record<string, number> },
+    /** How many dates of attempt history to keep. */
+    keepDays: 30,
+  },
+
+  records: {
+    recentMax: 20,
+    bestMax: 80,
+  },
+
+  /** Simulated "operator think time" per action used by the solvability oracle. */
   validate: {
     secondsPerBreach: 4,
     secondsPerDownload: 2.5,
     secondsPerMisc: 1.5,
-    /** Perfect run must finish at or below this trace to count as "completable with margin". */
+    /** Peak trace must stay below bust; the oracle's final trace must be at or below this. */
     maxTrace: 85,
-    /** Missions 1..3 must additionally allow a clean exit (see cleanExitUnder) with tools. */
+    /** Missions 1..3 must additionally allow a clean exit (see cleanExitUnder). */
     cleanExitRequiredThrough: 3,
+    /** Straight redraws before relaxing difficulty, then relaxed draws per level. */
+    redraws: 24,
+    relaxedDraws: 10,
   },
 
   economy: {
     /** Loot value per file indexed by the security of the node holding it (0..3). */
     cashPerFileBySecurity: [40, 90, 160, 260],
-    /** Flat completion bonus by contract index (1-based; index clamped to array). */
+    /** Flat completion bonus by contract index / tier (1-based; clamped to array). */
     missionBonus: [0, 100, 150, 200, 260, 320, 380, 450, 520, 600, 700],
-    /** Clean-exit payout multiplier (PRD §7). */
+    /** Clean-exit payout multiplier on loot (PRD §7) — completed objectives only. */
     cleanMultiplier: 1.5,
-    /** Bonus cash per log wiped. */
+    /** Bonus cash per log wiped — paid only when the objective is complete. */
     cashPerLog: 25,
     xpPerFile: 40,
     xpPerNode: 25,
+    /** Clean-completion XP bonus — completed objectives only. */
     xpCleanBonus: 50,
+    /** XP for delivering a payload / dossier objective (they have fewer files). */
+    xpObjective: 60,
     /** Busted runs keep half XP and no cash (PRD §7). */
     bustedXpFactor: 0.5,
   },
@@ -108,15 +205,41 @@ export const CONFIG = {
 
   mission: {
     count: 10,
-    /** Loot nodes per contract (beyond the entry node), by contract index. */
-    nodesByIndex: [0, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6],
-    /** Required target files ("steal N files") by contract index. */
-    targetsByIndex: [0, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4],
-    /** Highest security level reachable per contract index (generator jitter stays ≤ this). */
-    maxSecurityByIndex: [0, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3],
-    /** Cipher locks debut on this contract index (earlier contracts use sequences + knocks). */
-    cipherFromIndex: 4,
   },
+
+  /** GENERATION 2 tables — frozen with the generation (see header). */
+  generation: {
+    v2: {
+      /** Chain: loot nodes beyond the entry, by tier. */
+      chainNodesByTier: [0, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6],
+      /** Flagged-file objective size, by tier. */
+      targetsByTier: [0, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4],
+      maxSecurityByTier: [0, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3],
+      cipherFromTier: 4,
+      /** Fork missions add a deep node past the junction from this tier. */
+      deepNodeFromTier: 7,
+      /** Custom/daily: fork chance, objective weights, modifier chance (tier ≥ 5). */
+      forkChance: 0.75,
+      objectiveWeights: { flagged: 2, dossier: 1, payload: 1 },
+      modifierFromTier: 5,
+      modifierChance: 0.45,
+      vaultLootFiles: 2,
+    },
+  },
+
+  /** The campaign plan: introductory chains, then branches, new objectives, modifiers. */
+  campaign: [
+    { topology: 'chain', objective: 'flagged', modifier: null },
+    { topology: 'chain', objective: 'flagged', modifier: null },
+    { topology: 'chain', objective: 'flagged', modifier: null },
+    { topology: 'fork', objective: 'flagged', modifier: null },
+    { topology: 'chain', objective: 'dossier', modifier: null },
+    { topology: 'fork', objective: 'flagged', modifier: 'noisy' },
+    { topology: 'fork', objective: 'payload', modifier: null },
+    { topology: 'fork', objective: 'dossier', modifier: 'patrol' },
+    { topology: 'fork', objective: 'payload', modifier: 'noisy' },
+    { topology: 'fork', objective: 'dossier', modifier: 'patrol' },
+  ] as readonly CampaignEntry[],
 
   tutorial: {
     seed: 'TUTORIAL-0',
@@ -145,7 +268,8 @@ export const CONFIG = {
     ] as readonly ShopItem[],
   },
 
-  /** PRD §17 tuning targets — the `stats` command scores actual play against these. */
+  /** PRD §17 tuning targets — the `stats` command scores actual play against these.
+   *  They are playtest targets; automated tests cannot prove them. */
   stats: {
     sessionGapMs: 30 * 60 * 1000,
     targets: {
@@ -163,6 +287,21 @@ export interface ShopItem {
   desc: string;
   maxLevel: number;
   baseCost: number;
+}
+
+export interface ModuleDef {
+  id: 'burst' | 'quiet';
+  name: string;
+  unlockRank: string;
+  transferDuration: number;
+  transferTraceRate: number;
+  blurb: string;
+}
+
+export interface CampaignEntry {
+  topology: 'chain' | 'fork';
+  objective: 'flagged' | 'dossier' | 'payload';
+  modifier: 'noisy' | 'patrol' | null;
 }
 
 export type CyberGridConfig = typeof CONFIG;

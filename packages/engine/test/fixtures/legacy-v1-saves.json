@@ -1,0 +1,282 @@
+{
+ "contractTransfer": {
+  "version": 1,
+  "profile": {
+   "cash": 1234,
+   "xp": 950,
+   "contractsDone": 3,
+   "tutorialDone": true,
+   "upgrades": {
+    "overclock": 1
+   },
+   "telemetry": {
+    "runsStarted": 8,
+    "runsEnded": 6,
+    "runsCompleted": 5,
+    "runsBusted": 1,
+    "runsShort": 0,
+    "locksEncountered": 2,
+    "locksSolved": 2,
+    "locksSkipped": 0,
+    "lockFailures": 0,
+    "hintsBought": 0,
+    "proxiesBurned": 0,
+    "decoysBurned": 0,
+    "firstBreachSum": 0,
+    "firstBreachCount": 0,
+    "finalTraceSum": 0,
+    "finalTraceCount": 0,
+    "sessions": 2,
+    "lastPlayedAt": 1760000000000
+   }
+  },
+  "settings": {
+   "volume": 0.4,
+   "muted": true,
+   "crt": false,
+   "motion": false
+  },
+  "history": [
+   "contracts",
+   "run 1",
+   "scan",
+   "breach 10.106.218.123",
+   "input 243",
+   "breach 10.106.218.124",
+   "knock 1521 80 8443 9090",
+   "cd /srv",
+   "ls",
+   "download /srv/schema_backup.sql",
+   "download /vault/schema_backup.sql"
+  ],
+  "session": {
+   "kind": "contract",
+   "index": 1,
+   "seed": "CG-OMEN-01",
+   "trace": 19.262500000000003,
+   "rngState": 2781484291,
+   "tools": {
+    "proxy": 1,
+    "decoy": 1
+   },
+   "currentNodeId": "n2",
+   "breached": [
+    "n0",
+    "n1",
+    "n2"
+   ],
+   "downloaded": [],
+   "removed": [],
+   "scanned": true,
+   "watchdogNodeId": null,
+   "watchdogTimer": 22,
+   "decoyTimer": 0,
+   "puzzle": null,
+   "transfer": {
+    "fileId": "n2|/schema_backup.sql",
+    "progress": 0.4411764705882352
+   },
+   "progress": {
+    "sessionCash": 0,
+    "sessionXp": 50,
+    "downloadsCount": 0,
+    "downloadedValue": 0,
+    "logsWiped": 0
+   }
+  }
+ },
+ "tutorialDownloadStep": {
+  "version": 1,
+  "profile": {
+   "cash": 1234,
+   "xp": 950,
+   "contractsDone": 0,
+   "tutorialDone": false,
+   "upgrades": {},
+   "telemetry": {
+    "runsStarted": 7,
+    "runsEnded": 6,
+    "runsCompleted": 5,
+    "runsBusted": 1,
+    "runsShort": 0,
+    "locksEncountered": 0,
+    "locksSolved": 0,
+    "locksSkipped": 0,
+    "lockFailures": 0,
+    "hintsBought": 0,
+    "proxiesBurned": 0,
+    "decoysBurned": 0,
+    "firstBreachSum": 0,
+    "firstBreachCount": 0,
+    "finalTraceSum": 0,
+    "finalTraceCount": 0,
+    "sessions": 2,
+    "lastPlayedAt": 1760000000000
+   }
+  },
+  "settings": {
+   "volume": 0.4,
+   "muted": true,
+   "crt": false,
+   "motion": false
+  },
+  "history": [
+   "contracts",
+   "run 1",
+   "tutorial",
+   "scan",
+   "breach 10.0.0.12",
+   "input 16",
+   "ls",
+   "cd srv"
+  ],
+  "session": {
+   "kind": "tutorial",
+   "index": 0,
+   "seed": "TUTORIAL-0",
+   "trace": 8.165000000000001,
+   "rngState": 2424390435,
+   "tools": {
+    "proxy": 1,
+    "decoy": 1
+   },
+   "currentNodeId": "n1",
+   "breached": [
+    "n0",
+    "n1"
+   ],
+   "downloaded": [],
+   "removed": [],
+   "scanned": true,
+   "watchdogNodeId": null,
+   "watchdogTimer": 22,
+   "decoyTimer": 0,
+   "puzzle": null,
+   "transfer": null,
+   "progress": {
+    "sessionCash": 0,
+    "sessionXp": 25,
+    "downloadsCount": 0,
+    "downloadedValue": 0,
+    "logsWiped": 0
+   }
+  }
+ },
+ "cipherLock": {
+  "contract": 4,
+  "blob": {
+   "version": 1,
+   "profile": {
+    "cash": 1234,
+    "xp": 950,
+    "contractsDone": 3,
+    "tutorialDone": true,
+    "upgrades": {
+     "crowbar": 2
+    },
+    "telemetry": {
+     "runsStarted": 8,
+     "runsEnded": 6,
+     "runsCompleted": 5,
+     "runsBusted": 1,
+     "runsShort": 0,
+     "locksEncountered": 4,
+     "locksSolved": 3,
+     "locksSkipped": 0,
+     "lockFailures": 0,
+     "hintsBought": 0,
+     "proxiesBurned": 0,
+     "decoysBurned": 0,
+     "firstBreachSum": 0,
+     "firstBreachCount": 0,
+     "finalTraceSum": 0,
+     "finalTraceCount": 0,
+     "sessions": 2,
+     "lastPlayedAt": 1760000000000
+    }
+   },
+   "settings": {
+    "volume": 0.4,
+    "muted": true,
+    "crt": false,
+    "motion": false
+   },
+   "history": [
+    "contracts",
+    "run 1",
+    "run 4",
+    "scan",
+    "breach 10.179.180.123",
+    "input 16",
+    "breach 10.179.180.124",
+    "input 324",
+    "breach 10.179.180.125",
+    "input 48",
+    "breach 10.179.180.126"
+   ],
+   "session": {
+    "kind": "contract",
+    "index": 4,
+    "seed": "CG-OMEN-04",
+    "trace": 30.157499999999956,
+    "rngState": 1828446026,
+    "tools": {
+     "proxy": 1,
+     "decoy": 1
+    },
+    "currentNodeId": "n3",
+    "breached": [
+     "n0",
+     "n1",
+     "n2",
+     "n3"
+    ],
+    "downloaded": [],
+    "removed": [],
+    "scanned": true,
+    "watchdogNodeId": null,
+    "watchdogTimer": 22,
+    "decoyTimer": 0,
+    "puzzle": {
+     "family": "cipher",
+     "nodeId": "n4",
+     "elapsed": 38.65,
+     "attempts": 0,
+     "forcedSuccess": false,
+     "cipher": {
+      "word": "UPLINK",
+      "shift": 3,
+      "hinted": false
+     }
+    },
+    "transfer": null,
+    "progress": {
+     "sessionCash": 0,
+     "sessionXp": 75,
+     "downloadsCount": 0,
+     "downloadedValue": 0,
+     "logsWiped": 0
+    }
+   }
+  },
+  "timeLimit": 51,
+  "timeLeft": 12.350000000000001
+ },
+ "preShop": {
+  "version": 1,
+  "profile": {
+   "cash": 250,
+   "xp": 120,
+   "contractsDone": 2,
+   "tutorialDone": true
+  },
+  "settings": {
+   "volume": 0.8,
+   "muted": false,
+   "crt": true,
+   "motion": true
+  },
+  "history": [],
+  "session": null
+ }
+}

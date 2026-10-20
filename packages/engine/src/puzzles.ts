@@ -188,6 +188,18 @@ export function puzzlePrompt(p: PuzzleState): string {
   }
 }
 
+export const FAMILY_LABEL: Record<PuzzleState['family'], string> = {
+  sequence: 'packet interval lock',
+  portknock: 'knock sequence',
+  cipher: 'cipher plaque',
+};
+
+/** The decoding strip shown once the wheel offset is known. */
+export function cipherWheel(shift: number): string {
+  const alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  return `${caesar(alpha, shift)}\n${alpha}`;
+}
+
 export function puzzleView(p: PuzzleState): PuzzleView {
   return {
     family: p.family,
@@ -209,9 +221,7 @@ export function puzzleHint(p: PuzzleState): string {
     case 'portknock':
       return `hint › the lock buffer re-broadcasts the sequence once. Watch the glow.`;
     case 'cipher':
-      return p.cipher!.hinted
-        ? `hint › already spent. Wheel offset: ${p.cipher!.shift}. Shift each letter back by ${p.cipher!.shift}.`
-        : `hint › plaque reads "${caesar(p.cipher!.word, p.cipher!.shift)}". Wheel offset: ${p.cipher!.shift}.`;
+      return `hint › wheel offset ${p.cipher!.shift}: shift each plaque letter BACK by ${p.cipher!.shift}. It starts "${p.cipher!.word.slice(0, 2)}…". (strip is on your lock panel)`;
     default:
       return '';
   }

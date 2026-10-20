@@ -1,3 +1,4 @@
+import { campaignDescriptor, customDescriptor } from '../src/identity.js';
 import { describe, expect, it } from 'vitest';
 import { buildValidatedMission } from '../src/validate.js';
 import { GameEngine } from '../src/game.js';
@@ -23,7 +24,7 @@ const texts = (engine: GameEngine, cmd: string): string =>
 
 function specIp1(engine: GameEngine): string {
   void engine;
-  return buildValidatedMission(1, 'CG-OMEN-01').nodes[1]!.ip;
+  return buildValidatedMission(campaignDescriptor(1)).nodes[1]!.ip;
 }
 
 describe('P1: no guidance deadlock after a burnt fuse', () => {
@@ -83,7 +84,7 @@ describe('P1: no guidance deadlock after a burnt fuse', () => {
   it('contracts: timeout flips the suggestion to `breach <ip>`', () => {
     const engine = fresh();
     drain(engine, 'run 1');
-    const spec = buildValidatedMission(1, 'CG-OMEN-01');
+    const spec = buildValidatedMission(campaignDescriptor(1));
     drain(engine, 'scan');
     settle(engine);
     drain(engine, `breach ${spec.nodes[1]!.ip}`);
@@ -157,7 +158,7 @@ describe('P3: help and guidance correctness', () => {
     drain(engine, 'scan');
     settle(engine);
     const out = texts(engine, 'breach');
-    const spec = buildValidatedMission(1, 'CG-OMEN-01');
+    const spec = buildValidatedMission(campaignDescriptor(1));
     expect(out).toContain('breach which node?');
     expect(out).toContain(`breach ${spec.nodes[1]!.ip}`);
   });

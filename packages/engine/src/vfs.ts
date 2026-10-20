@@ -173,6 +173,8 @@ export function describeFile(f: FileSpec): string {
       return `LOOT $${f.value ?? 0}`;
     case 'log':
       return 'LOG · rm to clear trace';
+    case 'payload':
+      return 'PLANTED';
     default:
       return '';
   }

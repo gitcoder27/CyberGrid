@@ -1,3 +1,4 @@
+import { campaignDescriptor, customDescriptor } from '../src/identity.js';
 import { describe, expect, it } from 'vitest';
 import { CONFIG } from '../src/config.js';
 import { GameEngine } from '../src/game.js';
@@ -196,14 +197,14 @@ describe('escalation & outcomes (PRD §7)', () => {
     expect(engine.profile.contractsDone).toBe(1);
   });
 
-  it('messy exit (≥50% at disconnect) keeps loot without the clean bonus', () => {
+  it('hot exit (≥50% at disconnect) keeps loot without the clean bonus', () => {
     const engine = new GameEngine({ fast: true });
     bootToHome(engine);
     drain(engine, 'run 1');
     playHot(engine);
     const res = engine.lastResult!;
     if (res.trace >= CONFIG.trace.cleanExitUnder) {
-      expect(res.outcome).toBe('messy');
+      expect(res.outcome).toBe('hot');
       expect(res.cleanBonus).toBe(0);
       expect(res.cash).toBeGreaterThan(0); // loot kept
     } else {
@@ -256,5 +257,5 @@ function playHot(engine: GameEngine): void {
 
 function currentSpec(_engine: GameEngine): MissionSpec {
   // contract runs resolve through the validated-spec cache; same deterministic build
-  return buildValidatedMission(1, 'CG-OMEN-01');
+  return buildValidatedMission(campaignDescriptor(1));
 }
